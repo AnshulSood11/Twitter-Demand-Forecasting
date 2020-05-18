@@ -321,7 +321,7 @@ app.layout = html.Div(
 			id="footer",
 			className="footer",
 			children=[
-				html.B("View Code on :"), html.A('Github', href='https://github.com/AnshulSood11', target='_blank')
+				html.B("View Code on :"), html.A('Github', href='https://github.com/AnshulSood11/Twitter-Demand-Forecasting', target='_blank')
 			],
 			style={},
 		),
