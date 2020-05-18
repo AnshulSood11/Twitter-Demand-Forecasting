@@ -51,8 +51,13 @@ max_tweets_values = [100, 500, 1000, 2000, 5000, 0]
 
 net_scores = []
 
+tweets_info = pd.DataFrame(columns=['Product','Total','Positive','Negative'])
+
+T = 0  # Total number of tweets
+
 data_frames = []
 
+final_score_table = pd.DataFrame()
 
 def description_card():
 	"""
@@ -128,7 +133,7 @@ def generate_control_card():
 				dcc.Dropdown(
 					id="product-select",
 					options=sorted(product_options, key=lambda x: x["label"]),
-					value=products,
+					value= products,
 					multi=True,
 					style={'width': '300px'}
 				),
@@ -162,7 +167,7 @@ def generate_control_card():
 							4: {'label': '5000'},
 							5: {'label': 'no_limit'},
 						},
-						value=5
+						value=5,
 					)
 				], style={'width': 300}),
 			], style={'display': 'flex'}),
@@ -204,24 +209,18 @@ def generate_processing_window():
 	)
 
 
-def generate_bar_graph():
+def generate_sentiment_bar_graph():
 	return html.Div(
 		className="eight columns",
 		children=[
 			dcc.Graph(
-				id="bar-graph",
+				id="sentiment-bar",
 				hoverData=None,
 				figure=go.Figure(
 					data=[go.Bar(x=products, y=[])]
 				),
 			),
 			html.Div(id='hidden-text-graph', style={'display': 'none'}),
-			dcc.Interval(
-				id='graph-interval',
-				interval=1000,
-				n_intervals=0,
-				disabled=True
-			)
 		],
 		style={'padding': '10px 0px 0px 0px'}
 	)
@@ -238,9 +237,9 @@ def generate_pie_chart():
 	)
 
 
-def generate_scatter_graph():
+def generate_line_graph():
 	return html.Div([dcc.Graph(
-		id='scatter-graph'
+		id='line-graph'
 	)],
 		style={'padding': '10px 10px 30px 10px'}
 	)
@@ -271,17 +270,53 @@ app.layout = html.Div(
 				html.Div(
 					id="right-column-upper",
 					# className="eight columns",
-					children=[generate_bar_graph(), generate_pie_chart()],
+					children=[generate_sentiment_bar_graph(), generate_pie_chart()],
 					style={'display': 'inline-block'}
 				),
 				html.Div(
 					id="right-column-lower",
 					# className="eight columns",
-					children=[generate_scatter_graph()],
+					children=[generate_line_graph()],
 				)
 			]
 		),
 		# Footer
+		html.Div(
+			id="final-score-info",
+			children=[
+				html.Div(
+					className="twelve columns",
+					children=[
+						html.Div(
+							id="final-score-table",
+							className="four columns",
+							children=[
+								# dbc.Table.from_dataframe(dfxx, striped=True, bordered=True, hover=True)
+							]
+						),
+						html.Div(
+							className="eight columns",
+							children=[
+								dcc.Graph(
+									id="final-bar",
+									hoverData=None,
+									figure=go.Figure(
+										data=[go.Bar(x=products, y=[])]
+									),
+								),
+								dcc.Interval(
+									id='final-bar-interval',
+									interval=5000,
+									n_intervals=0,
+									disabled=False
+								)
+							],
+							style={'padding':'0px 2%','width':'50%'}
+						)
+					]
+				),
+			]
+		),
 		html.Div(
 			id="footer",
 			className="footer",
@@ -313,7 +348,7 @@ def update_location_search(search_value):
 	 Output('location-select', 'value')],
 	[Input('add-location-button', 'n_clicks')],
 	[State('location-select', 'options'),
-	 State('location-select','value')]
+	 State('location-select', 'value')]
 )
 def update_locations(n_clicks, existing_options, selected_location):
 	if n_clicks is None:
@@ -326,7 +361,7 @@ def update_locations(n_clicks, existing_options, selected_location):
 	for o in existing_options:
 		if o["label"].lower() == location_search.lower():
 			location_search = ''
-			return existing_options,selected_location
+			return existing_options, selected_location
 
 	s = ""
 	for word in location_search.split():
@@ -375,14 +410,15 @@ def update_products(n_clicks, existing_options, selected_products):
 
 	existing_options.append({'label': product_search, 'value': product_search})
 	sorted_options = sorted(existing_options, key=lambda x: x["label"].upper())
+
 	selected_products.append(product_search)
 	product_search = ''
-	return sorted_options,selected_products
+	return sorted_options, selected_products
 
 
 @app.callback(
 	[Output('processing-interval', 'disabled'),
-	 Output('graph-interval', 'disabled'),
+	 # Output('final-bar-interval', 'disabled'),
 	 Output('query-btn', 'children'),
 	 Output('query-btn', 'color'),
 	 ],
@@ -390,7 +426,7 @@ def update_products(n_clicks, existing_options, selected_products):
 	 Input('processing-interval', 'n_intervals')
 	 ]
 )
-def start_processing_interval(time_stamp, n):
+def start_intervals(time_stamp, n):
 	if time_stamp is None:
 		raise PreventUpdate
 
@@ -400,16 +436,17 @@ def start_processing_interval(time_stamp, n):
 
 		if not running_state[0]:  # if query btn is pressed
 			running_state[0] = True
-			return False, False, "Interrupt", "danger"
+			return False,  "Interrupt", "danger"
 		else:  # if Interrupt btn is pressed
 			running_state[0] = False
 			processing_info += "\n --- Interrupted ---"
 			time.sleep(1)
-			return True, True, "Query", "primary"
+			return True, "Query", "primary"
 	if running_state[0]:
-		return False, False, "Interrupt", "danger"
+		return False, "Interrupt", "danger"
 	else:
-		return True, True, "Query", "primary"
+		# time.sleep(1)
+		return True, "Query", "primary"
 
 
 @app.callback(
@@ -422,11 +459,30 @@ def update_processing_window(n):
 
 
 @app.callback(
-	Output("bar-graph", "figure"),
-	[Input('graph-interval', 'n_intervals')],
+	Output("final-score-table", "children"),
+	[Input('processing-interval', 'n_intervals')],
+	[State("product-select", "value")]
+)
+def update_final_score(n, selected_products):
+	global final_score_table,tweets_info
+	
+	final_score_table = pd.DataFrame(columns=['Products', 's', 'p', 'r', 's*r'])
+	for index in range(len(net_scores)):
+		s = net_scores[index]
+		p = tweets_info.loc[index]['Positive']
+		r = p / T
+		final_score = s * r
+
+		final_score_table.loc[len(final_score_table)] = [selected_products[index], s, p, round(r,2), round(final_score)]
+
+	return dbc.Table.from_dataframe(final_score_table, striped=True, bordered=True, hover=True)
+
+@app.callback(
+	Output("sentiment-bar", "figure"),
+	[Input('processing-interval', 'n_intervals')],
 	[State("product-select", "value"), ]
 )
-def update_bar_graph(n, selected_products):
+def update_sentiment_bar_graph(n, selected_products):
 	fig = go.Figure()
 	fig.add_trace(go.Bar(x=selected_products, y=net_scores))
 	fig.update_layout(
@@ -438,17 +494,39 @@ def update_bar_graph(n, selected_products):
 	)
 	return fig
 
+@app.callback(
+	Output("final-bar", "figure"),
+	[Input('final-bar-interval', 'n_intervals')],
+
+)
+def update_final_bar_graph(n):
+	fig = go.Figure()
+	fig.add_trace(go.Bar(x=final_score_table['s*r'], y=final_score_table['Products'],orientation='h'))
+	fig.update_layout(
+		title='Final Scores',
+		title_x=0.5,
+		bargap=0.2,
+		xaxis=dict(title_text='Final Score',categoryorder='total descending'),
+		yaxis=dict(title_text='Product'),
+	)
+	return fig
 
 @app.callback(
 	Output('pie-chart', 'figure'),
-	[Input('bar-graph', 'hoverData')]
+	[Input('sentiment-bar', 'hoverData'),
+	 Input('final-bar', 'hoverData')]
 )
-def update_pie_chart(hoverData):
+def update_pie_chart(hoverData1, hoverData2):
+
+	global tweets_info
+
+	ctx = dash.callback_context
+	hoverData = ctx.triggered[0]['value']
+
 	if hoverData is not None:
-		index = hoverData['points'][0]['pointIndex']
-		scores = data_frames[index]['score']
-		pos = sum(score >= 0 for score in scores)
-		neg = scores.count() - pos
+		product = hoverData['points'][0]['label']
+		pos = tweets_info[tweets_info['Product']==product].values[0][2]
+		neg = tweets_info[tweets_info['Product']==product].values[0][3]
 		values = [pos, neg]
 		fig = go.Figure()
 		fig.add_trace(go.Pie(labels=['Positive', 'Negative'],
@@ -456,7 +534,7 @@ def update_pie_chart(hoverData):
 							 hoverinfo='label+percent',
 							 textinfo='value'))
 		fig.update_layout(
-			title='{}'.format(hoverData['points'][0]['x']),
+			title='{}'.format(hoverData['points'][0]['label']),
 			xaxis=dict(showgrid=False, zeroline=False),
 			yaxis=dict(showgrid=False, zeroline=False),
 		)
@@ -465,17 +543,22 @@ def update_pie_chart(hoverData):
 		fig = go.Figure()
 		fig.update_layout(
 			title='Positive vs Negative sentiments',
-			title_x = 0.5,
+			title_x=0.5,
 			xaxis=dict(showgrid=False, zeroline=False),
 			yaxis=dict(showgrid=False, zeroline=False))
 		return fig
 
 
 @app.callback(
-	Output('scatter-graph', 'figure'),
-	[Input('bar-graph', 'hoverData')]
+	Output('line-graph', 'figure'),
+	[Input('sentiment-bar', 'hoverData'),
+	 Input('final-bar', 'hoverData')]
 )
-def update_scatter_graph(hoverData):
+def update_line_graph(hoverData1,hoverData2):
+
+	ctx = dash.callback_context
+	hoverData = ctx.triggered[0]['value']
+
 	if hoverData is not None:
 		index = hoverData['points'][0]['pointIndex']
 		df = data_frames[index]
@@ -489,7 +572,7 @@ def update_scatter_graph(hoverData):
 								 y=values,
 								 mode='lines+markers'))
 		fig.update_layout(
-			title='Trends for {}'.format(hoverData['points'][0]['x']),
+			title='Trends for {}'.format(hoverData['points'][0]['label']),
 			title_x=0.5,
 			xaxis=dict(title_text='Day'),
 			yaxis=dict(title_text='Sentiment Score (day-wise)')
@@ -504,7 +587,6 @@ def update_scatter_graph(hoverData):
 			yaxis=dict(showgrid=False, zeroline=False, title_text='Net Sentiment (per day)')
 		)
 		return fig
-
 
 @app.callback(
 
@@ -521,12 +603,13 @@ def update_scatter_graph(hoverData):
 		   ]
 )
 def perform_queries(n_clicks, start, end, location, country, selected_products, max_tweets):
-	global processing_info, net_scores, data_frames, running_state
+	global processing_info, net_scores, data_frames, running_state, T, tweets_info
 
 	if n_clicks is None:
 		raise PreventUpdate
 
-	time.sleep(1)  # give time so that the change in running_state from start_processing_interval gets reflected here also
+	time.sleep(
+		1)  # give time so that the change in running_state from start_processing_interval gets reflected here also
 
 	if running_state[0] is True:
 		processing_info = ">>> "
@@ -541,11 +624,13 @@ def perform_queries(n_clicks, start, end, location, country, selected_products, 
 
 		processing_info += "Performing Queries" + new_line
 		net_scores = []
+		T = 0
 		data_frames = []
 
 		for product_index in range(len(selected_products)):
+			pos = 0
+			neg = 0
 			query_twitter(start, end, location, country, selected_products[product_index], max_tweets)
-			# tweets = pd.read_csv(product + ".csv")
 			tweets = data_frames[product_index]
 			scores = []
 			net_score = 0
@@ -559,16 +644,22 @@ def perform_queries(n_clicks, start, end, location, country, selected_products, 
 					score += ss['compound']
 
 				score /= len(lines_list)
-				score = score * (tweets['retweets'][i] + tweets['favorites'][i] + 1)
+				score = score * (int(tweets['retweets'][i]) + int(tweets['favorites'][i]) + 1)
 				score = round(score, 2)
 				scores.append(score)
 				net_score += score
+				if score>= 0:
+					pos+=1
+				else:
+					neg+=1
 
 			data_frames[product_index]['score'] = scores
-			net_scores.append(round(net_score, 2))
+			net_scores.append(round(net_score))
+			data_frames[product_index].to_csv(selected_products[product_index] + ".csv")
+			tweets_info.loc[len(tweets_info)] = [selected_products[product_index],pos+neg,pos,neg]
 
-		print(net_scores)
-		processing_info += "{}".format(net_scores) + new_line
+		# print(net_scores)
+		# processing_info += "{}".format(net_scores) + new_line
 		processing_info += "Done\n"
 		time.sleep(1)
 		running_state[0] = False
@@ -578,15 +669,13 @@ def perform_queries(n_clicks, start, end, location, country, selected_products, 
 
 
 def query_twitter(start, end, location, country, product, max_tweets):
-	# global outputFile, outputFileName
-	global processing_info, new_line, data_frames
+	global processing_info, new_line, data_frames, T
 	max_tweets = max_tweets_values[max_tweets]
 	columns = ['date', 'username', 'to', 'replies', 'retweets', 'favorites', 'text', 'geo', 'mentions', 'hashtags',
 			   'id', 'permalink']
 	row_list = []
 	try:
 		tweetCriteria = got.manager.TweetCriteria()
-		# outputFileName = 'old_tweets.csv'
 
 		usernames = set()
 		username_files = set()
@@ -596,9 +685,6 @@ def query_twitter(start, end, location, country, product, max_tweets):
 		tweetCriteria.near = location + " ," + country
 		tweetCriteria.maxTweets = max_tweets
 		tweetCriteria.lang = "en"
-		# outputFileName = product + ".csv"
-		# outputFile = open(outputFileName, "w+", encoding="utf8")
-		# outputFile.write('date,username,to,replies,retweets,favorites,text,geo,mentions,hashtags,id,permalink\n')
 
 		cnt = 0
 
@@ -619,11 +705,9 @@ def query_twitter(start, end, location, country, product, max_tweets):
 						t.hashtags,
 						t.id,
 						t.permalink]
-				# data[:] = [i if isinstance(i, str) else str(i) for i in data]
-				# outputFile.write(','.join(data) + '\n')
+				data[:] = [i if isinstance(i, str) else str(i) for i in data]
 				row_list.append(dict(zip(columns, data)))
 
-			# outputFile.flush()
 			cnt += len(tweets)
 
 			if running_state[0] is False:
@@ -642,6 +726,7 @@ def query_twitter(start, end, location, country, product, max_tweets):
 		print("Downloading tweets for {}".format(product))
 		processing_info += "Downloading tweets for {} ...\n".format(product)
 		got.manager.TweetManager.getTweets(tweetCriteria, receiveBuffer, state=running_state)
+		T += cnt
 
 	# except KeyboardInterrupt:
 	# 	print("\r\nInterrupted.\r\n")
@@ -659,11 +744,6 @@ def query_twitter(start, end, location, country, product, max_tweets):
 		df = pd.DataFrame(row_list)
 		data_frames.append(df)
 
-
-# if "outputFile" in locals():
-# 	outputFile.close()
-# 	print()
-# 	print('Done. Output file generated "%s".' % outputFileName)
 
 # Run the server
 if __name__ == "__main__":
