@@ -25,7 +25,7 @@ Here's a simple demo:
 ![Twitter Demand Forecasting demo](demo/demo.gif)
 
 
-As a use case, I provide analysis for top 5 smartphone brands in India with location set to Delhi and
+As a sample use case, I provide analysis for top 5 smartphone brands in India with location set to Delhi and
 considering tweets from 25th April to 11th May.
 
 Here are the net sentiment scores for all the 5 brands, namely Oneplus, Samsung, iPhone, Nokia and Redmi
