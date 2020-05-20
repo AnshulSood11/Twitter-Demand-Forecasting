@@ -44,7 +44,7 @@ Here are the net sentiment scores for all the 5 brands, namely Oneplus, Samsung,
 | Redmi   | 68                  |  
 
 
-According to sentiment scores the order of demand becomes:  
+Sentiment scores in decreasing order are:
 Samsung > OnePlus > iPhone > Nokia > Redmi
 
 Now, if we analyze the number of tweets tweeted related to each of these brands:
