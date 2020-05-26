@@ -142,5 +142,4 @@ related to that product. Using this score a final_score is assigned(as explained
 
 #### Data Presentation
 
-[Dash](https://github.com/plotly/dash) is used to build the web application. It will soon be deployed
-on Heroku.
+[Dash](https://github.com/plotly/dash) is used to build the web application.
