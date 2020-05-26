@@ -22,7 +22,7 @@ happiness about using a product.
 
 Here's a simple demo:
 
-![Twitter Demand Forecasting demo](demo/demo.gif)
+![Twitter Demand Forecasting demo](demo/demo1.gif)
 
 
 As a sample use case, I provide analysis for top 5 smartphone brands in India with location set to Delhi and
